@@ -10,7 +10,7 @@ def draw(p) -> bool:
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
-def truncated_normal(mean=0.0, sd=1.0) -> float:
+def truncated_normal(mean=0.5, sd=1.0) -> float:
     # TODO: unclear explication of truncated normal
     rnt = np.random.normal(loc=mean, scale=sd)
     while rnt > 1.0 or rnt < 0.0:
@@ -26,20 +26,21 @@ class Inno:
         self.V = truncated_normal()
 
 class Firm:
-    def __init__(self, args, inno_pool) -> None:
+    def __init__(self, args, inno_pool: list) -> None:
         self.args = args
         self.K = truncated_normal()
-        self.outcome_his = [0]
+        self.outcome_his = list()
         
-        self.inno = np.random.choice(inno_pool)
         self.inno_pool = inno_pool
-        self.inno_his = [self.inno]
+        self.inno = np.random.choice(self.inno_pool)
+        self.inno_his = list()
         self.n_ti = 0
         self.set_IS()
     
     def set_IS(self):
         if self.args.is_const_IS:
-            self.I = self.S = self.args.const_IS
+            self.I = self.args.const_I
+            self.S = self.args.const_S
         else:
             self.I = truncated_normal(self.args.mean_IS, self.args.sd_IS)
             self.S = truncated_normal(self.args.mean_IS, self.args.sd_IS)
@@ -55,12 +56,21 @@ class Firm:
         self.inno_his.append(self.inno)
 
         self.n_ti = 0
-        while self.inno_his[-(self.n_ti+1)].id == self.inno.id and (self.n_ti+1) < len(self.inno_his):
-            self.n_ti += 1
+        while (self.n_ti+1) <= len(self.inno_his):
+            if self.inno_his[-(self.n_ti+1)].id == self.inno.id:
+                self.n_ti += 1
+            else:
+                break
 
     def get_outcome_his_avg(self):
+        if not self.outcome_his:
+            return 0.0
         window_size = min(self.args.M, len(self.outcome_his))
-        return sum(self.outcome_his[-window_size:]) / window_size 
+        inno_outcome_ls = list()
+        for i in range(1, window_size+1):
+            if self.inno.id == self.inno_his[-i].id:
+                inno_outcome_ls.append(self.outcome_his[-i])
+        return np.mean(inno_outcome_ls)
 
     def abandon(self, w: Inno, n_tw):
         o_fti = self.get_outcome_his_avg() 
@@ -70,34 +80,37 @@ class Firm:
             self.adoption(w, n_tw)
 
     def _cal_tw(self, w: Inno):
-        for i in range(1, min(self.args.M, len(self.inno_his))):
+        for i in range(1, min(self.args.M, len(self.inno_his))+1):
             if self.inno_his[-i].id == w.id:
                 return i - 1
         return -1
 
     def adoption(self, w: Inno, n_tw):
-        r_ext_fw = 1 - self.S ** (self.args.lamb * n_tw)
-
-        tw = self._cal_tw(w)
-        if tw == -1:
-            r_int_fw = 1
-        else:
-            r_int_fw = 1 - self.S ** (self.args.lamb * tw)
-        
-        prob = r_ext_fw * r_int_fw
-        if draw(prob):
-            self.inno = w
-        else:
+        if self.inno.id == w.id:
             self.inno = np.random.choice(self.inno_pool)
-        
+        else:
+            r_ext_fw = 1 - self.S ** (self.args.lamb * n_tw)
+
+            tw = self._cal_tw(w)
+            if tw == -1:
+                r_int_fw = 1
+            else:
+                r_int_fw = 1 - self.S ** (self.args.lamb * tw)
+            
+            prob = r_ext_fw * r_int_fw
+            if draw(prob):
+                self.inno = w
+            else:
+                self.inno = np.random.choice(self.inno_pool)
     
 
 class Simulation:
     def __init__(self, args: argparse.ArgumentParser, random_seed) -> None:
         np.random.seed(random_seed)
+        self.args = args
         print(args)
 
-        self.args = args
+        Inno._ids = itertools.count(0)
         self.innos = [Inno() for _ in range(self.args.n_inno)]
         self.firms = [Firm(args, self.innos) for _ in range(self.args.n_firm)]
         self.innos_adopted_ctr = [0 for _ in range(self.args.n_inno)]
@@ -113,10 +126,15 @@ class Simulation:
         self.n_tw = None
     
     def _update_winning_inno_his(self):
-        best_firm_idx = np.argmax([f.outcome_his[-1] for f in self.firms])
-        self.winning_inno_his.append(self.firms[best_firm_idx].inno)
-        self.n_tw = sum([1 for i in range(1, min(self.args.M, len(self.winning_inno_his)) + 1)
-            if self.winning_inno_his[-i] == self.winning_inno_his[-1]])
+        if not self.firms[0].outcome_his:
+            best_firm_idx = 0
+            self.winning_inno_his.append(self.firms[best_firm_idx].inno)
+            self.n_tw = 0
+        else:
+            best_firm_idx = np.argmax([f.outcome_his[-1] for f in self.firms])
+            self.winning_inno_his.append(self.firms[best_firm_idx].inno)
+            self.n_tw = sum([1 for i in range(1, min(self.args.M, len(self.winning_inno_his)) + 1)
+                if self.winning_inno_his[-i].id == self.winning_inno_his[-1].id])
     
     def _update_leading_inno_adopted_ctr(self):
         self.innos_adopted_ctr = [0 for _ in range(self.args.n_inno)]
@@ -137,10 +155,10 @@ class Simulation:
                 self.firms[firm_idx].abandon(self.winning_inno_his[-1], self.n_tw)
                 self.firms[firm_idx].get_outcome_and_update()
             self.update()
-            print("iter {} | {} {}".format(iter_idx, self.leading_inno_his[-1], self.leading_inno_adopted_ctr[-1]/self.args.n_firm))
+            # print("iter {} | {} {}".format(iter_idx, self.leading_inno_his[-1], self.leading_inno_adopted_ctr[-1]/self.args.n_firm))
 
-    def get_popularity(self) -> float:
-        return np.mean(self.leading_inno_adopted_ctr) / self.args.n_firm 
+    def get_mean_popularity(self) -> float:
+        return np.mean(self.leading_inno_adopted_ctr)
     
     def get_turnover(self) -> float:
         turnover = 0
@@ -150,4 +168,7 @@ class Simulation:
                 turnover += 1
                 current_inno = self.leading_inno_his[inno_idx]
         return turnover
+    
+    def get_popularity(self):
+        return np.array(self.leading_inno_adopted_ctr)
         

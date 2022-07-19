@@ -23,13 +23,15 @@ class ArgsConfig(object):
             help="")
         parser.add_argument("--is_const_IS", type=bool, default=True,
             help="")
-        parser.add_argument("--const_IS", type=float, default=0.0,
+        parser.add_argument("--const_I", type=float, default=0.0,
+            help="")
+        parser.add_argument("--const_S", type=float, default=0.0,
             help="")
         parser.add_argument("--mean_IS", type=float, default=0.5,
             help="")
         parser.add_argument("--sd_IS", type=float, default=1.0, 
             help="")
-        parser.add_argument("--random_seed", type=int, default=1025, 
+        parser.add_argument("--random_seed", type=int, default=3025, 
             help="")
 
         self.parser = parser

@@ -47,13 +47,13 @@ class PlotLinesHandler:
         self.use_ylim = use_ylim
             
 
-    def plot_line(self, data, data_log_v=1, linewidth=1, color="", alpha=1.0):
+    def plot_line(self, data, data_log_v=1, linewidth=1, format="", alpha=1.0, x_shift=0):
         plt.figure(self.id)
-        if color:
-            plt.plot((np.arange(data.shape[-1])+1)*data_log_v, data,
-                linewidth=linewidth, color=color, alpha=alpha)
+        if format:
+            plt.plot((np.arange(data.shape[-1])+x_shift)*data_log_v, data, format,
+                linewidth=linewidth, alpha=alpha)
         else:
-            plt.plot((np.arange(data.shape[-1])+1)*data_log_v, data,
+            plt.plot((np.arange(data.shape[-1])+x_shift)*data_log_v, data,
                 linewidth=linewidth)
 
     def save_fig(self, legend=[], fn_prefix="", fn_suffix=""):
