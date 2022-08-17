@@ -9,6 +9,7 @@ from utils import Simulation
 from plot import PlotLinesHandler
 
 EXP = 1
+N_TRAIL = 1
 
 if __name__ == "__main__":
     argsconfig = ArgsConfig()
@@ -17,7 +18,7 @@ if __name__ == "__main__":
         args_list = []
         pop_list = []
         turn_list = []
-        for _ in range(10):
+        for _ in range(N_TRAIL):
             args = argsconfig.get_args()
             args_list.append(args)
         for args_idx, args in enumerate(args_list):
@@ -29,16 +30,17 @@ if __name__ == "__main__":
 
             args_tmp = argsconfig.get_args()
             fn_suffix = "_".join(["randSeed_{}_n_iter_{}".format(args_tmp.random_seed + args_idx, args_tmp.n_iter)])
-            plot_handler = PlotLinesHandler(xlabel="Value of Innovation",
-                                            ylabel="",
+            plot_handler = PlotLinesHandler(xlabel="Iteration",
+                                            ylabel="Popularity",
                                             title=None,
                                             fn="exp1",
                                             x_lim=[98, 202], y_lim=[-2, 60], use_ylim=True,
                                             x_tick=[100, 200, 25], y_tick=[0, 60, 20],
                                             figure_ratio=748/1006)
-            plot_handler.plot_line(demo.get_popularity()[100:], data_log_v=1, linewidth=2, format="k-", x_shift=100)
-            legend = ["Popularity"]
-            plot_handler.save_fig(legend, fn_suffix=fn_suffix)
+            innos_pop = demo.get_leading_inno_popularity()
+            for inno_pop in innos_pop:
+                plot_handler.plot_line(inno_pop, data_log_v=1, linewidth=2, x_shift=101)
+            plot_handler.save_fig(fn_suffix=fn_suffix)
         
         sysout = sys.stdout
         fn = "_".join(["exp1_randSeed_{}_n_iter_{}".format(args_list[0].random_seed, args_list[0].n_iter)])

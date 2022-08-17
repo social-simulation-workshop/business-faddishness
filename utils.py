@@ -1,17 +1,13 @@
 import argparse
 import itertools
 import numpy as np
-import sys
 
 
 def draw(p) -> bool:
     return True if np.random.uniform() < p else False
 
-def eprint(*args, **kwargs):
-    print(*args, file=sys.stderr, **kwargs)
-
 def truncated_normal(mean=0.5, sd=1.0) -> float:
-    # TODO: unclear explication of truncated normal
+    # TODO: unclear explination of truncated normal
     rnt = np.random.normal(loc=mean, scale=sd)
     while rnt > 1.0 or rnt < 0.0:
         rnt = np.random.normal(loc=mean, scale=sd)
@@ -53,24 +49,17 @@ class Firm:
     def get_outcome_and_update(self):
         o = self.get_outcome()
         self.outcome_his.append(o)
-        self.inno_his.append(self.inno)
-
-        self.n_ti = 0
-        while (self.n_ti+1) <= len(self.inno_his):
-            if self.inno_his[-(self.n_ti+1)].id == self.inno.id:
-                self.n_ti += 1
-            else:
-                break
+        if len(self.outcome_his) == self.args.M:
+            self.outcome_his.pop(0)
+        self.inno_his.append(self.inno.id)
+        if len(self.inno_his) == self.args.M:
+            self.inno_his.pop(0)
+        self.n_ti = self.inno_his.count(self.inno.id)
 
     def get_outcome_his_avg(self):
         if not self.outcome_his:
             return 0.0
-        window_size = min(self.args.M, len(self.outcome_his))
-        inno_outcome_ls = list()
-        for i in range(1, window_size+1):
-            if self.inno.id == self.inno_his[-i].id:
-                inno_outcome_ls.append(self.outcome_his[-i])
-        return np.mean(inno_outcome_ls)
+        return np.mean([o for i, o in enumerate(self.outcome_his) if self.inno_his[i] == self.inno.id])
 
     def abandon(self, w: Inno, n_tw):
         o_fti = self.get_outcome_his_avg() 
@@ -80,8 +69,8 @@ class Firm:
             self.adoption(w, n_tw)
 
     def _cal_tw(self, w: Inno):
-        for i in range(1, min(self.args.M, len(self.inno_his))+1):
-            if self.inno_his[-i].id == w.id:
+        for i in range(1, len(self.inno_his)+1):
+            if self.inno_his[-i] == w.id:
                 return i - 1
         return -1
 
@@ -107,58 +96,57 @@ class Firm:
 class Simulation:
     def __init__(self, args: argparse.ArgumentParser, random_seed) -> None:
         np.random.seed(random_seed)
+        Inno._ids = itertools.count(0)
         self.args = args
         print(args)
 
-        Inno._ids = itertools.count(0)
         self.innos = [Inno() for _ in range(self.args.n_inno)]
         self.firms = [Firm(args, self.innos) for _ in range(self.args.n_firm)]
-        self.innos_adopted_ctr = [0 for _ in range(self.args.n_inno)]
-        for f in self.firms:
-            self.innos_adopted_ctr[f.inno.id] += 1
         
         self.leading_inno_his = list()
-        self.leading_inno_adopted_ctr = list()
+        self.leading_inno_pop_list = list()
 
+        self.winning_inno = np.random.choice(self.innos) 
         self.winning_inno_his = list()
         
         # the number of different firms that have won with winning between t and t - M
-        self.n_tw = None
+        self.n_tw = 0
     
-    def _update_winning_inno_his(self):
-        if not self.firms[0].outcome_his:
-            best_firm_idx = 0
-            self.winning_inno_his.append(self.firms[best_firm_idx].inno)
-            self.n_tw = 0
-        else:
-            best_firm_idx = np.argmax([f.outcome_his[-1] for f in self.firms])
-            self.winning_inno_his.append(self.firms[best_firm_idx].inno)
-            self.n_tw = sum([1 for i in range(1, min(self.args.M, len(self.winning_inno_his)) + 1)
-                if self.winning_inno_his[-i].id == self.winning_inno_his[-1].id])
-    
-    def _update_leading_inno_adopted_ctr(self):
-        self.innos_adopted_ctr = [0 for _ in range(self.args.n_inno)]
+    def _get_inno_popularity_list(self) -> list:
+        pop = [0] * self.args.n_inno
         for f in self.firms:
-            self.innos_adopted_ctr[f.inno.id] += 1
-        best_inno_idx = np.argmax(self.innos_adopted_ctr)
-        self.leading_inno_his.append(best_inno_idx)
-        self.leading_inno_adopted_ctr.append(self.innos_adopted_ctr[best_inno_idx])
+            pop[f.inno.id] += 1
+        return pop
+
+    def _update_winning_inno_his(self):
+        winning_firm_idx = np.argmax([f.outcome_his[-1] for f in self.firms])
+        winning_inno_idx = self.firms[winning_firm_idx].inno.id
+        self.winning_inno = self.innos[winning_inno_idx]
+        self.winning_inno_his.append(winning_inno_idx)
+        if len(self.winning_inno_his) == self.args.M:
+            self.winning_inno_his.pop(0)
+        self.n_tw = self.winning_inno_his.count(winning_inno_idx)
+    
+    def _update_leading_inno_pop_list(self):
+        inno_pop_list = self._get_inno_popularity_list() 
+        leading_inno_idx = np.argmax(inno_pop_list)
+        self.leading_inno_his.append(leading_inno_idx)
+        self.leading_inno_pop_list.append(inno_pop_list[leading_inno_idx])
     
     def update(self):
         self._update_winning_inno_his()
-        self._update_leading_inno_adopted_ctr()
+        self._update_leading_inno_pop_list()
     
     def simulate(self):
-        self.update()
         for iter_idx in range(self.args.n_iter):
             for firm_idx in range(self.args.n_firm):
-                self.firms[firm_idx].abandon(self.winning_inno_his[-1], self.n_tw)
+                self.firms[firm_idx].abandon(self.winning_inno, self.n_tw)
                 self.firms[firm_idx].get_outcome_and_update()
             self.update()
             # print("iter {} | {} {}".format(iter_idx, self.leading_inno_his[-1], self.leading_inno_adopted_ctr[-1]/self.args.n_firm))
 
     def get_mean_popularity(self) -> float:
-        return np.mean(self.leading_inno_adopted_ctr)
+        return np.mean(self.leading_inno_pop_list)
     
     def get_turnover(self) -> float:
         turnover = 0
@@ -169,6 +157,12 @@ class Simulation:
                 current_inno = self.leading_inno_his[inno_idx]
         return turnover
     
-    def get_popularity(self):
-        return np.array(self.leading_inno_adopted_ctr)
-        
+    def get_leading_inno_popularity(self):
+        assert len(self.leading_inno_his) == len(self.leading_inno_pop_list)
+        inno_pop = list()
+        for inno_idx in set(self.leading_inno_his):
+            inno_pop.append([0.0 if self.leading_inno_his[i] != inno_idx else self.leading_inno_pop_list[i]
+                for i in range(len(self.leading_inno_his))])
+        inno_pop = np.array(inno_pop)
+        inno_pop[inno_pop == 0.0] = np.nan
+        return inno_pop

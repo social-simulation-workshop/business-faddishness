@@ -4,8 +4,6 @@ import numpy as np
 import os
 import seaborn as sns
 
-from utils import eprint
-
 sns.set()
 sns.set_style("white")
 # sns.set_style("whitegrid")
@@ -45,7 +43,6 @@ class PlotLinesHandler:
             ax.set_ylim([y_lim[0], y_lim[1]])
             plt.yticks(np.arange(y_tick[0], y_tick[1]+self.EPSILON, step=y_tick[2]))
         self.use_ylim = use_ylim
-            
 
     def plot_line(self, data, data_log_v=1, linewidth=1, format="", alpha=1.0, x_shift=0):
         plt.figure(self.id)
@@ -69,4 +66,4 @@ class PlotLinesHandler:
             plt.legend(legend)
         # plt.subplots_adjust(left=0.0, bottom=0.0, right=1.0, top=1.0)
         plt.savefig(os.path.join(self.output_dir, fn))
-        eprint("fig save to {}".format(os.path.join(self.output_dir, fn)))
+        print("fig save to {}".format(os.path.join(self.output_dir, fn)))

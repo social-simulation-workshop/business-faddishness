@@ -31,7 +31,7 @@ class ArgsConfig(object):
             help="")
         parser.add_argument("--sd_IS", type=float, default=1.0, 
             help="")
-        parser.add_argument("--random_seed", type=int, default=3025, 
+        parser.add_argument("--random_seed", type=int, default=4025, 
             help="")
 
         self.parser = parser
