@@ -8,58 +8,69 @@ from args import ArgsConfig
 from utils import Simulation
 from plot import PlotLinesHandler
 
-EXP = 1
-N_TRAIL = 1
+def exp1_single_trail(args_idx, args, pop_list, turn_list):
+    print("trail {} started".format(args_idx))
+    demo = Simulation(args, args.random_seed + args_idx)
+    demo.simulate()
+    pop_list.append(demo.get_mean_popularity())
+    turn_list.append(demo.get_turnover())
+    print(pop_list[-1], turn_list[-1])
+
+    args_tmp = argsconfig.get_args()
+    fn_suffix = "_".join(["randSeed_{}_n_iter_{}".format(args_tmp.random_seed + args_idx, args_tmp.n_iter)])
+    plot_handler = PlotLinesHandler(xlabel="Iteration",
+                                    ylabel="Popularity",
+                                    title=None,
+                                    fn="exp1",
+                                    x_lim=[98, 202], y_lim=[-2, 60], use_ylim=True,
+                                    x_tick=[100, 200, 25], y_tick=[0, 60, 20],
+                                    figure_ratio=748/1006)
+    innos_pop = demo.get_leading_inno_popularity()
+    for inno_pop in innos_pop:
+        plot_handler.plot_line(inno_pop, data_log_v=1, linewidth=2, x_shift=101)
+    plot_handler.save_fig(fn_suffix=fn_suffix)
+
 
 if __name__ == "__main__":
     argsconfig = ArgsConfig()
+    args = argsconfig.get_args()
 
-    if EXP == 1 or EXP == 0:
+    if args.exp == 1:
+        pop_manager = multiprocessing.Manager()
+        pop_list = pop_manager.list()
+        turn_manager = multiprocessing.Manager()
+        turn_list = turn_manager.list()
+        
         args_list = []
-        pop_list = []
-        turn_list = []
-        for _ in range(N_TRAIL):
+        for trail_idx in range(args.n_trail):
             args = argsconfig.get_args()
-            args_list.append(args)
-        for args_idx, args in enumerate(args_list):
-            demo = Simulation(args, args.random_seed + args_idx)
-            demo.simulate()
-            pop_list.append(demo.get_mean_popularity())
-            turn_list.append(demo.get_turnover())
-            print(pop_list[-1], turn_list[-1])
-
-            args_tmp = argsconfig.get_args()
-            fn_suffix = "_".join(["randSeed_{}_n_iter_{}".format(args_tmp.random_seed + args_idx, args_tmp.n_iter)])
-            plot_handler = PlotLinesHandler(xlabel="Iteration",
-                                            ylabel="Popularity",
-                                            title=None,
-                                            fn="exp1",
-                                            x_lim=[98, 202], y_lim=[-2, 60], use_ylim=True,
-                                            x_tick=[100, 200, 25], y_tick=[0, 60, 20],
-                                            figure_ratio=748/1006)
-            innos_pop = demo.get_leading_inno_popularity()
-            for inno_pop in innos_pop:
-                plot_handler.plot_line(inno_pop, data_log_v=1, linewidth=2, x_shift=101)
-            plot_handler.save_fig(fn_suffix=fn_suffix)
+            args_list.append([trail_idx, args, pop_list, turn_list])
+        
+        n_cpus = multiprocessing.cpu_count()
+        print("cpu count: {}".format(n_cpus))
+        pool = multiprocessing.Pool(n_cpus+2)
+        pool.starmap(exp1_single_trail, args_list)
         
         sysout = sys.stdout
-        fn = "_".join(["exp1_randSeed_{}_n_iter_{}".format(args_list[0].random_seed, args_list[0].n_iter)])
+        args = argsconfig.get_args()
+        fn = "_".join(["exp1_randSeed_{}_n_iter_{}_n_trail_{}.txt".format(
+            args.random_seed, args.n_iter, args.n_trail)])
         f = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), fn), 'w')
         sys.stdout = f
-        print(args_list[0])
+        print(args)
         print("pop_mean, pop_std = ({}, {})".format(np.mean(pop_list), np.std(pop_list)))
         print("turn_mean, turn_std = ({}, {})".format(np.mean(turn_list), np.std(turn_list)))
         f.close()
         sys.stdout = sysout
         
     
-    if EXP == 2 or EXP == 0:
+    if args.exp == 2:
         args_skep_list = []
         pop_skep_list = []
         turn_skep_list = []
         for s in range(0, 101, 10):
             args = argsconfig.get_args()
-            args.const_S = s
+            args.const_S = s / 100
             args_skep_list.append(args)
         for args_idx, args in enumerate(args_skep_list):
             demo = Simulation(args, args.random_seed + args_idx)
@@ -73,7 +84,7 @@ if __name__ == "__main__":
         turn_inert_list = []
         for i in range(0, 101, 10):
             args = argsconfig.get_args()
-            args.const_I = i
+            args.const_I = i / 100
             args_inert_list.append(args)
         for args_idx, args in enumerate(args_inert_list):
             demo = Simulation(args, args.random_seed + args_idx)
@@ -102,7 +113,7 @@ if __name__ == "__main__":
         plot_handler.save_fig(legend, fn_suffix=fn_suffix)
     
 
-    if EXP == 3 or EXP == 0:
+    if args.exp == 3:
         args_beta_list = []
         pop_beta_list = []
         turn_beta_list = []

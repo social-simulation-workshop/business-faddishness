@@ -31,7 +31,15 @@ class ArgsConfig(object):
             help="")
         parser.add_argument("--sd_IS", type=float, default=1.0, 
             help="")
-        parser.add_argument("--random_seed", type=int, default=4025, 
+        parser.add_argument("--mean_eVK", type=float, default=0.5,
+            help="")
+        parser.add_argument("--sd_eVK", type=float, default=1.0,
+            help="")
+        parser.add_argument("--random_seed", type=int, default=10025, 
+            help="")
+        parser.add_argument("--exp", type=int, default=1, 
+            help="")
+        parser.add_argument("--n_trail", type=int, default=100, 
             help="")
 
         self.parser = parser

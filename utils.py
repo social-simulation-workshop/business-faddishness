@@ -1,37 +1,41 @@
 import argparse
 import itertools
 import numpy as np
+from scipy.stats import truncnorm
 
 
 def draw(p) -> bool:
     return True if np.random.uniform() < p else False
 
-def truncated_normal(mean=0.5, sd=1.0) -> float:
-    # TODO: unclear explination of truncated normal
-    rnt = np.random.normal(loc=mean, scale=sd)
-    while rnt > 1.0 or rnt < 0.0:
-        rnt = np.random.normal(loc=mean, scale=sd)
-    return rnt
+def truncated_normal(mean=0.5, sd=1.0, low=0, upp=1):
+    return truncnorm((low - mean) / sd, (upp - mean) / sd, loc=mean, scale=sd).rvs()
 
 
 class Inno:
     _ids = itertools.count(0)
     
-    def __init__(self) -> None:
+    def __init__(self, args) -> None:
         self.id = next(self._ids)
-        self.V = truncated_normal()
+        self.set_V(args)
+
+        self.pop_his = list()
+    
+    def set_V(self, args):
+        self.V = truncated_normal(args.mean_eVK, args.sd_eVK)
 
 class Firm:
     def __init__(self, args, inno_pool: list) -> None:
         self.args = args
         self.K = truncated_normal()
-        self.outcome_his = list()
         
         self.inno_pool = inno_pool
         self.inno = np.random.choice(self.inno_pool)
-        self.inno_his = list()
+        self.inno_his = list() # with memory of the past M iterations
         self.n_ti = 0
         self.set_IS()
+
+        self.outcome_his = list() # with memory of the past M iterations
+        self.get_outcome_and_update() # t = 1
     
     def set_IS(self):
         if self.args.is_const_IS:
@@ -41,24 +45,24 @@ class Firm:
             self.I = truncated_normal(self.args.mean_IS, self.args.sd_IS)
             self.S = truncated_normal(self.args.mean_IS, self.args.sd_IS)
 
-    def get_outcome(self):
-        e = truncated_normal() 
+    def _get_outcome(self):
+        e = truncated_normal()
         o = self.args.alpha * self.K + self.args.beta * self.inno.V + (1 - self.args.alpha - self.args.beta) * e
         return o
 
     def get_outcome_and_update(self):
-        o = self.get_outcome()
+        o = self._get_outcome()
         self.outcome_his.append(o)
         if len(self.outcome_his) == self.args.M:
             self.outcome_his.pop(0)
+        assert len(self.outcome_his) <= self.args.M
         self.inno_his.append(self.inno.id)
         if len(self.inno_his) == self.args.M:
             self.inno_his.pop(0)
+        assert len(self.inno_his) <= self.args.M
         self.n_ti = self.inno_his.count(self.inno.id)
 
     def get_outcome_his_avg(self):
-        if not self.outcome_his:
-            return 0.0
         return np.mean([o for i, o in enumerate(self.outcome_his) if self.inno_his[i] == self.inno.id])
 
     def abandon(self, w: Inno, n_tw):
@@ -100,7 +104,7 @@ class Simulation:
         self.args = args
         print(args)
 
-        self.innos = [Inno() for _ in range(self.args.n_inno)]
+        self.innos = [Inno(args) for _ in range(self.args.n_inno)]
         self.firms = [Firm(args, self.innos) for _ in range(self.args.n_firm)]
         
         self.leading_inno_his = list()
@@ -132,6 +136,9 @@ class Simulation:
         leading_inno_idx = np.argmax(inno_pop_list)
         self.leading_inno_his.append(leading_inno_idx)
         self.leading_inno_pop_list.append(inno_pop_list[leading_inno_idx])
+
+        for inno_idx in range(self.args.n_inno):
+            self.innos[inno_idx].pop_his.append(inno_pop_list[inno_idx])
     
     def update(self):
         self._update_winning_inno_his()
@@ -139,6 +146,8 @@ class Simulation:
     
     def simulate(self):
         for iter_idx in range(self.args.n_iter):
+            for inno_idx in range(self.args.n_inno):
+                self.innos[inno_idx].set_V(self.args)
             for firm_idx in range(self.args.n_firm):
                 self.firms[firm_idx].abandon(self.winning_inno, self.n_tw)
                 self.firms[firm_idx].get_outcome_and_update()
@@ -155,14 +164,12 @@ class Simulation:
             if current_inno != self.leading_inno_his[inno_idx]:
                 turnover += 1
                 current_inno = self.leading_inno_his[inno_idx]
-        return turnover
+        return turnover / len(self.leading_inno_his) * 100
     
     def get_leading_inno_popularity(self):
         assert len(self.leading_inno_his) == len(self.leading_inno_pop_list)
-        inno_pop = list()
-        for inno_idx in set(self.leading_inno_his):
-            inno_pop.append([0.0 if self.leading_inno_his[i] != inno_idx else self.leading_inno_pop_list[i]
-                for i in range(len(self.leading_inno_his))])
-        inno_pop = np.array(inno_pop)
+
+        pop_top6_inno_idx = np.argsort([sum(inno.pop_his[-100:]) for inno in self.innos])[-6:]
+        inno_pop = np.array([self.innos[inno_idx].pop_his[-100:] for inno_idx in pop_top6_inno_idx]).astype("float")
         inno_pop[inno_pop == 0.0] = np.nan
         return inno_pop
