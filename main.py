@@ -8,16 +8,16 @@ from args import ArgsConfig
 from utils import Simulation
 from plot import PlotLinesHandler
 
-def exp1_single_trail(args_idx, args, pop_list, turn_list):
-    print("trail {} started".format(args_idx))
-    demo = Simulation(args, args.random_seed + args_idx)
+def exp1_single_trail(trail_idx, args, pop_list, turn_list):
+    print("trail {} started".format(trail_idx))
+    demo = Simulation(args, args.random_seed + trail_idx)
     demo.simulate()
     pop_list.append(demo.get_mean_popularity())
     turn_list.append(demo.get_turnover())
     print(pop_list[-1], turn_list[-1])
 
     args_tmp = argsconfig.get_args()
-    fn_suffix = "_".join(["randSeed_{}_n_iter_{}".format(args_tmp.random_seed + args_idx, args_tmp.n_iter)])
+    fn_suffix = "_".join(["randSeed_{}_n_iter_{}".format(args_tmp.random_seed + trail_idx, args_tmp.n_iter)])
     plot_handler = PlotLinesHandler(xlabel="Iteration",
                                     ylabel="Popularity",
                                     title=None,
@@ -29,6 +29,20 @@ def exp1_single_trail(args_idx, args, pop_list, turn_list):
     for inno_pop in innos_pop:
         plot_handler.plot_line(inno_pop, data_log_v=1, linewidth=2, x_shift=101)
     plot_handler.save_fig(fn_suffix=fn_suffix)
+
+
+def single_paramset(args, indep_var, pop_list, turn_list, n_trail=10):
+    tmp_pop_list, tmp_turn_list = list(), list()
+    for trail_idx in range(n_trail):
+        demo = Simulation(args, args.random_seed + trail_idx)
+        demo.simulate()
+        tmp_pop_list.append(demo.get_mean_popularity())
+        tmp_turn_list.append(demo.get_turnover())
+    pop_list.append((indep_var, np.mean(tmp_pop_list)))
+    turn_list.append((indep_var, np.mean(tmp_turn_list)))
+
+def sort_list(l) -> list:
+    return [val for (indep_var, val) in sorted(l, key=lambda x: x[0])]
 
 
 if __name__ == "__main__":
@@ -65,34 +79,47 @@ if __name__ == "__main__":
         
     
     if args.exp == 2:
+        # skepticism
+        pop_skep_manager = multiprocessing.Manager()
+        pop_skep_list = pop_skep_manager.list()
+        turn_skep_manager = multiprocessing.Manager()
+        turn_skep_list = turn_skep_manager.list()
+
         args_skep_list = []
-        pop_skep_list = []
-        turn_skep_list = []
         for s in range(0, 101, 10):
             args = argsconfig.get_args()
             args.const_S = s / 100
-            args_skep_list.append(args)
-        for args_idx, args in enumerate(args_skep_list):
-            demo = Simulation(args, args.random_seed + args_idx)
-            demo.simulate()
-            pop_skep_list.append(demo.get_mean_popularity())
-            turn_skep_list.append(demo.get_turnover())
-            print(pop_skep_list[-1], turn_skep_list[-1])
+            args_skep_list.append([args, s, pop_skep_list, turn_skep_list])
         
+        n_cpus = multiprocessing.cpu_count()
+        print("cpu count: {}".format(n_cpus))
+        pool = multiprocessing.Pool(n_cpus+2)
+        pool.starmap(single_paramset, args_skep_list)
+
+        pop_skep_list = sort_list(pop_skep_list)
+        turn_skep_list = sort_list(turn_skep_list) 
+
+        # inert
+        pop_inert_manager = multiprocessing.Manager()
+        pop_inert_list = pop_inert_manager.list()
+        turn_inert_manager = multiprocessing.Manager()
+        turn_inert_list = turn_inert_manager.list()
+
         args_inert_list = []
-        pop_inert_list = []
-        turn_inert_list = []
         for i in range(0, 101, 10):
             args = argsconfig.get_args()
             args.const_I = i / 100
-            args_inert_list.append(args)
-        for args_idx, args in enumerate(args_inert_list):
-            demo = Simulation(args, args.random_seed + args_idx)
-            demo.simulate()
-            pop_inert_list.append(demo.get_mean_popularity())
-            turn_inert_list.append(demo.get_turnover())
-            print(pop_inert_list[-1], turn_inert_list[-1])
+            args_inert_list.append([args, i, pop_inert_list, turn_inert_list])
 
+        n_cpus = multiprocessing.cpu_count()
+        print("cpu count: {}".format(n_cpus))
+        pool = multiprocessing.Pool(n_cpus+2)
+        pool.starmap(single_paramset, args_inert_list)
+
+        pop_inert_list = sort_list(pop_inert_list)
+        turn_inert_list = sort_list(turn_inert_list)
+
+        # plot
         args_tmp = argsconfig.get_args()
         fn_suffix = "_".join(["randSeed_{}_n_iter_{}".format(args_tmp.random_seed, args_tmp.n_iter)])
         plot_handler = PlotLinesHandler(xlabel="Skepticism and Inertia",
@@ -107,27 +134,35 @@ if __name__ == "__main__":
         plot_handler.plot_line(np.array(pop_inert_list), data_log_v=10, linewidth=2, format="k:")
         plot_handler.plot_line(np.array(turn_inert_list), data_log_v=10, linewidth=2, format="k-.")
         legend = ["Popularity by Skepticism",
-                "Turnover by Skepticism",
-                "Popularity by Inertia",
-                "Turnover by Inertia"]
+                  "Turnover by Skepticism",
+                  "Popularity by Inertia",
+                  "Turnover by Inertia"]
         plot_handler.save_fig(legend, fn_suffix=fn_suffix)
     
 
     if args.exp == 3:
+        # beta
+        pop_beta_manager = multiprocessing.Manager()
+        pop_beta_list = pop_beta_manager.list()
+        turn_beta_manager = multiprocessing.Manager()
+        turn_beta_list = turn_beta_manager.list()
+        
         args_beta_list = []
-        pop_beta_list = []
-        turn_beta_list = []
         for b in range(0, 101, 10):
             args = argsconfig.get_args()
             args.beta = b
             args.is_const_IS = False
-            args_beta_list.append(args)
-        for args_idx, args in enumerate(args_beta_list):
-            demo = Simulation(args, args.random_seed + args_idx)
-            demo.simulate()
-            pop_beta_list.append(demo.get_mean_popularity())
-            turn_beta_list.append(demo.get_turnover())
+            args_beta_list.append([args, b, pop_beta_list, turn_beta_list])
+
+        n_cpus = multiprocessing.cpu_count()
+        print("cpu count: {}".format(n_cpus))
+        pool = multiprocessing.Pool(n_cpus+2)
+        pool.starmap(single_paramset, args_beta_list)
+
+        pop_beta_list = sort_list(pop_beta_list)
+        turn_beta_list = sort_list(turn_beta_list)
      
+        # plot
         args_tmp = argsconfig.get_args()
         fn_suffix = "_".join(["randSeed_{}_n_iter_{}".format(args_tmp.random_seed, args_tmp.n_iter)])
         plot_handler = PlotLinesHandler(xlabel="Value of Innovation",
