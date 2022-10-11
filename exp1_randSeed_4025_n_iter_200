@@ -1,3 +1,0 @@
-Namespace(M=10, alpha=0.0, beta=0.0, const_I=0.0, const_S=0.0, is_const_IS=True, lamb=0.25, mean_IS=0.5, n_firm=100, n_inno=1000, n_iter=200, random_seed=4025, sd_IS=1.0)
-pop_mean, pop_std = (47.76, 0.0)
-turn_mean, turn_std = (105.0, 0.0)
