@@ -1,0 +1,3 @@
+Namespace(alpha=0.0, beta=0.0, M=10, lamb=0.25, n_firm=100, n_inno=1000, n_iter=200, is_const_IS=True, const_I=0.0, const_S=0.0, mean_IS=0.5, sd_IS=1.0, mean_eVK=0.5, sd_eVK=1.0, random_seed=10025, exp=1, n_trail=100)
+pop_mean, pop_std = (47.75900000000001, 0.4502738055894436)
+turn_mean, turn_std = (51.88, 3.4081666625914875)
