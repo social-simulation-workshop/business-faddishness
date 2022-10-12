@@ -150,7 +150,7 @@ if __name__ == "__main__":
         args_beta_list = []
         for b in range(0, 101, 10):
             args = argsconfig.get_args()
-            args.beta = b
+            args.beta = b / 100
             args.is_const_IS = False
             args_beta_list.append([args, b, pop_beta_list, turn_beta_list])
 

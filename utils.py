@@ -146,8 +146,8 @@ class Simulation:
     
     def simulate(self):
         for iter_idx in range(self.args.n_iter):
-            for inno_idx in range(self.args.n_inno):
-                self.innos[inno_idx].set_V(self.args)
+            # for inno_idx in range(self.args.n_inno):
+            #     self.innos[inno_idx].set_V(self.args)
             for firm_idx in range(self.args.n_firm):
                 self.firms[firm_idx].abandon(self.winning_inno, self.n_tw)
                 self.firms[firm_idx].get_outcome_and_update()
